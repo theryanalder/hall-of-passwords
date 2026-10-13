@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hall Of Passwords</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+</head>
+
+<style>
+    h1 {
+        text-align: center;
+        font-size: 100px;
+        font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+        color: blanchedalmond;
+        background-color: black;
+        background-size: contain;
+        width: fit-content;
+        margin: 50px auto 0 auto;
+    }
+    input[type="password"], input[type="text"] {
+        margin-top:70px;
+        width:300px;
+        padding:10px;
+        font-size:30px;
+    }
+    .toggle-container {
+        color: white;
+        font-family: sans-serif;
+        font-size: 20px;
+        margin-top: 15px;
+        margin-bottom: 30px; 
+    }
+    body {
+        text-align: center;
+        background: url(BG.avif);
+        background-repeat: no-repeat;
+        background-size: cover;
+    }
+    #login-screen {
+        display: block;
+    }
+    #secret-screen {
+        display: none;
+        color: limegreen;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 50px;
+        margin-top: 200px;
+    }
+    .Namee{
+        color:white;
+        font-style: bold;
+        font-size: 50px;
+    }
+    label[name="IK"]{
+        color:white;
+        font-size:40px;
+    }
+    input[type="radio"]{
+        transform: scale(1.5);
+        margin:0px 50px 40px 30px;
+    }
+    button{
+        font-size:50px;
+        margin-top: 100px;
+        padding: 10px 30px;
+        cursor: pointer;
+    }
+
+    #admin-panel {
+        margin-top: 50px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        border: 2px solid red;
+        color: white;
+        width: 60%;
+        margin-left: auto;
+        margin-right: auto;
+        font-family: monospace;
+        text-align: left;
+        display: none;
+    }
+    #admin-panel h2 {
+        color: red;
+        margin-top: 0;
+    }
+    #log-list {
+        max-height: 200px;
+        overflow-y: auto;
+        list-style-type: none;
+        padding: 0;
+    }
+    #log-list li {
+        padding: 5px 0;
+        border-bottom: 1px solid #333;
+    }
+    .toggle-log-btn {
+        background: transparent;
+        color: gray;
+        border: none;
+        font-size: 14px;
+        margin-top: 40px;
+        cursor: pointer;
+    }
+</style>
+<body>
+
+    <div id="login-screen">
+        <h1>Password Required to Proceed</h1>
+        
+        <form id="password-form">
+            <input class="Pass" type="password" placeholder="Enter Password" required>
+
+            <div class="toggle-container">
+                <input type="checkbox" id="show-pass"> <label for="show-pass">Show Password</label>
+            </div>
+            
+            <p class="Namee">Enter Name</p>
+            <input type="radio" class="R" name="IDK" value="Ryan" id="Ryan">
+            <label for="Ryan" class="label-R" name="IK">Ryan</label><br>
+
+            <input type="radio" class="C" name="IDK" value="Chaoqi" id="Chaoqi">
+            <label for="Chaoqi" class="label-C" name="IK">Chaoqi</label><br>
+
+            <input type="radio" class="E" name="IDK" value="Ethan" id="Ethan">
+            <label for="Ethan" class="label-E" name="IK">Ethan</label><br>
+            
+            <button type="submit" class="sub">Submit?</button>
+        </form>
+
+        <button class="toggle-log-btn" id="view-logs">View Access Logs</button>
+        
+        <div id="admin-panel">
+            <h2>Activity Logs (Cloud Sync)</h2>
+            <ul id="log-list"></ul>
+            <button id="clear-logs" style="font-size: 16px; margin-top: 10px; padding: 5px; color: black;">Clear Logs</button>
+        </div>
+    </div>
+
+    <div id="secret-screen">Welcome <span id="user-display">YAPYAP</span></div>
+
+    <script>
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhP-1NNK76kjvohPVx6W73WsPrJI-F1Wc",
+            authDomain: "://firebaseapp.com",
+            databaseURL: "https://the-hall-of-passwords-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            projectId: "the-hall-of-passwords",
+            storageBucket: "the-hall-of-passwords.firebasestorage.app",
+            messagingSenderId: "2447075160",
+            appId: "1:2447075160:web:eec98a7c13b3e4e451a72d",
+            measurementId: "G-4VCBXL4CV0"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        var idleTimer;
+        var timeoutDuration = 10000; 
+
+        var ADMIN_PASSWORD = "admin123";
+
+        var userPasswords = {
+            "Ryan": "ryan123",
+            "Chaoqi": "chaoqi456",
+            "Ethan": "ethan789"
+        };
+
+        $('input[name="IDK"]').on('change', function() {
+            var selectedUser = $(this).val();
+            logUserActivity(selectedUser, "Selected their name (Radio)");
+        });
+
+        $('#show-pass').on('change', function() {
+            if ($(this).is(':checked')) {
+                $('.Pass').attr('type', 'text');
+            } else {
+                $('.Pass').attr('type', 'password');
+            }
+        });
+
+        $('#password-form').on('submit', function(e) {
+            e.preventDefault(); 
+
+            var enteredPassword = $('.Pass').val();
+            var selectedName = $('input[name="IDK"]:checked').val();
+
+            if (!selectedName) {
+                alert("Please select your name before submitting.");
+                return;
+            }
+
+            var correctPassword = userPasswords[selectedName];
+
+            if (enteredPassword === correctPassword) { 
+                logUserActivity(selectedName, "Successfully Logged In");
+
+                $('#user-display').text(selectedName.toUpperCase());
+                
+                $('#login-screen').hide();
+                $('#secret-screen').show();
+                $('.Pass').val(''); 
+                $('#password-form')[0].reset(); 
+                startIdleTimer();
+            } else {
+                logUserActivity(selectedName, "Entered WRONG password");
+                alert("Incorrect Password for " + selectedName + ". Try again.");
+            }
+        });
+
+        function logUserActivity(username, action) {
+            var timestamp = new Date().toLocaleString();
+            database.ref('logs').push({
+                user: username,
+                action: action,
+                time: timestamp,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        function updateLogDisplay() {
+            database.ref('logs').orderByChild('timestamp').limitToLast(100).once('value', function(snapshot) {
+                var $list = $('#log-list');
+                $list.empty();
+                
+                var logEntries = [];
+                snapshot.forEach(function(childSnapshot) {
+                    logEntries.unshift(childSnapshot.val());
+                });
+
+                if (logEntries.length === 0) {
+                    $list.append('<li>No history found.</li>');
+                    return;
+                }
+
+                logEntries.forEach(function(entry) {
+                    $list.append('<li><strong>' + entry.user + '</strong>: ' + entry.action + ' at ' + entry.time + '</li>');
+                });
+            });
+        }
+
+        $('#view-logs').on('click', function() {
+            if ($('#admin-panel').is(':visible')) {
+                $('#admin-panel').slideUp();
+                return;
+            }
+
+            var inputPass = prompt("Enter Master Admin Password to view logs:");
+            
+            if (inputPass === ADMIN_PASSWORD) {
+                updateLogDisplay();
+                $('#admin-panel').slideDown();
+            } else if (inputPass !== null) {
+                alert("Access Denied: Invalid Admin Password.");
+            }
+        });
+
+        $('#clear-logs').on('click', function() {
+            if (confirm("Are you sure you want to delete all cloud log history permanently?")) {
+                database.ref('logs').remove().then(function() {
+                    updateLogDisplay();
+                });
+            }
+        });
+
+        function startIdleTimer() {
+            resetIdleTimer();
+            $(document).on('mousemove keypress scroll click', resetIdleTimer);
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(lockScreen, timeoutDuration);
+        }
+
+        function lockScreen() {
+            $(document).off('mousemove keypress scroll click', resetIdleTimer);
+            $('#secret-screen').hide();
+            $('#login-screen').show();
+        }
+    </script>
+</body>
+</html>
